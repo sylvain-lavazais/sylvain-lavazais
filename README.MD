@@ -7,13 +7,6 @@
   Consultant at <a href="https://zenika.com/en-US">Zenika</a>
 </p>
 
-<a href="https://app.daily.dev/lavazais-sylvain">
-  <img 
-    src="https://api.daily.dev/devcards/d49f90900bfa451fb331b13ce78a9c0b.png?r=ymr" 
-    width="400" 
-    alt="Sylvain LAVAZAIS's Dev Card"/>
-</a>
-
 ## Public contributions
 
 ![Metrics](./github-metrics.svg)
