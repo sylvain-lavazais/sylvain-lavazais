@@ -43,4 +43,6 @@ jobs:
           plugin_languages_sections: most-used, recently-used
           plugin_languages_threshold: 0%
           plugin_languages_details: percentage
+          plugin_calendar: yes
+          plugin_calendar_limit: 0
           repositories_forks: yes
