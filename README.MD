@@ -13,3 +13,9 @@
 ## Public contributions
 
 ![Metrics](./github-metrics.svg)
+
+<div style="font-size: 0.6em">
+metrics powered by <a href="https://github.com/lowlighter">lowlighter</a></br>
+make your own: <a href="https://github.com/lowlighter/metrics">https://github.com/lowlighter/metrics</a>
+</div>
+
