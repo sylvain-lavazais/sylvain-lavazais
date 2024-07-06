@@ -10,9 +10,9 @@
   Consultant at <a href="https://zenika.com/en-US">Zenika</a>
 </p>
 
-### learning...
+#### learning...
 
-<div><script src="https://tryhackme.com/badge/2992737"><img src="https://tryhackme-badges.s3.amazonaws.com/Li77leSh4rk.png" alt="TryHackMe"></script></div>
+<img src="https://tryhackme-badges.s3.amazonaws.com/Li77leSh4rk.png" alt="TryHackMe">
 
 ## Public contributions
 
