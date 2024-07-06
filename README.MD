@@ -2,6 +2,7 @@
 
 <p>
   <a href="https://www.linkedin.com/in/sylvain-lavazais"><img src="https://img.shields.io/badge/linkedin-sylvain_lavazais-blue.png" alt="Linkedin Profile" /></a>
+</br>
   <a href="https://www.codewars.com/users/lavazais-sylvain"><img src="https://www.codewars.com/users/lavazais-sylvain/badges/small" alt="CodeWars Profile" /></a>
 </br>
   <a href="https://tryhackme.com/p/Li77leSh4rk"><img src="https://tryhackme-badges.s3.amazonaws.com/Li77leSh4rk.png" alt="TryHackMe profile"></a>
@@ -11,10 +12,6 @@
   <a href="https://zenika.com/en-US"><img src="https://zenika.com/static/images/favicon-16x16.png" alt="Zenika Logo" /></a>
   Consultant at <a href="https://zenika.com/en-US">Zenika</a>
 </p>
-
-#### learning...
-
-
 
 ## Public contributions
 
