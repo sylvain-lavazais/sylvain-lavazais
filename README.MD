@@ -3,6 +3,7 @@
 <p>
   <a href="https://www.linkedin.com/in/sylvain-lavazais"><img src="https://img.shields.io/badge/linkedin-sylvain_lavazais-blue.png" alt="Linkedin Profile" /></a>
   <a href="https://www.codewars.com/users/lavazais-sylvain"><img src="https://www.codewars.com/users/lavazais-sylvain/badges/small" alt="CodeWars Profile" /></a>
+  <a href="https://tryhackme.com/p/Li77leSh4rk"><img src="https://tryhackme-badges.s3.amazonaws.com/Li77leSh4rk.png" alt="TryHackMe profile"></a>
 </p>
 
 <p>
@@ -12,7 +13,7 @@
 
 #### learning...
 
-<img src="https://tryhackme-badges.s3.amazonaws.com/Li77leSh4rk.png" alt="TryHackMe">
+
 
 ## Public contributions
 
