@@ -6,6 +6,7 @@
   <a href="https://www.codewars.com/users/lavazais-sylvain"><img src="https://www.codewars.com/users/lavazais-sylvain/badges/small" alt="CodeWars Profile" /></a>
 </br>
   <a href="https://tryhackme.com/p/Li77leSh4rk"><img src="https://tryhackme-badges.s3.amazonaws.com/Li77leSh4rk.png" alt="my TryHackMe profile" /></a>
+  <iframe src="https://tryhackme.com/api/v2/badges/public-profile?userPublicId=2992737" style='border:none;'></iframe>
 </p>
 
 <p>
