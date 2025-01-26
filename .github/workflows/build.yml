@@ -7,12 +7,26 @@ on:
   workflow_dispatch:
   push: {branches: ["main"]}
 jobs:
+  tryHackMe-badge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Set-up Git
+        run: |
+          git config --global user.name '${{ github.repository }}'
+          git config --global user.email '${{ secrets.EMAIL }}'
+          git remote set-url origin https://x-access-token:${{ secrets.METRICS_TOKEN }}@github.com/${{ github.repository }}
+      - name: Updating tryHackMe badge image
+        run: |
+          make push-thm-badge
   github-metrics:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: lowlighter/metrics@latest
+      - name: Generating metrics
+        uses: lowlighter/metrics@latest
         with:
           # Your GitHub token
           # The following scopes are required:
