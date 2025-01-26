@@ -13,7 +13,7 @@ update-thm-badge:  ## update tryHackMe badge
 push-thm-badge: update-thm-badge ## update and push tryHackMe badge
 	@echo "=> $@"
 	@git add tryHackMe.png
-	@git commit -m "feat(THM): update tryHackMe badge" || true
+	@git commit -m "feat(THM): update tryHackMe badge [Skip GitHub Action]" || true
 	@git push || true
 .PHONY: push-thm-badge
 
