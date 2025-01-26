@@ -5,7 +5,7 @@
 </br>
   <a href="https://www.codewars.com/users/lavazais-sylvain"><img src="https://www.codewars.com/users/lavazais-sylvain/badges/small" alt="CodeWars Profile" /></a>
 </br>
-  <a href="https://tryhackme.com/p/Li77leSh4rk"></a>
+  <a href="https://tryhackme.com/p/Li77leSh4rk"><img src="tryHackMe.png" /></a>
 </p>
 
 <p>
