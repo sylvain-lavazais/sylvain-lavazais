@@ -8,7 +8,7 @@ THM_USERNAME := Li77leSh4rk
 ##@ Run
 ##  ---
 
-update-thm-badge:  ## update tryHackMe badge
+update-thm-badge: .resolve-deps ## update tryHackMe badge
 	@echo "=> $@"
 	@./script/scrap_thm_profile.py $(THM_USERNAME)
 
