@@ -1,0 +1,6 @@
+click
+requests
+structlog
+Pillow
+svglib
+reportlab
