@@ -67,8 +67,13 @@ class THMProfileScraper:
         bg_color = (20, 29, 45)  # Deep THM Blue
         card_color = (30, 42, 60)  # Slightly lighter Blue
         accent_green = (120, 230, 100)  # Vibrant Green
-        text_white = (255, 255, 255)
-        text_grey = (160, 174, 192)
+        accent_white = (255, 255, 255)
+        accent_grey = (160, 174, 192)
+        accent_red = (255, 0, 0)
+        accent_cyan = (0, 255, 255)
+        accent_yellow = (255, 255, 0)
+        accent_brown = (255, 165, 0)
+        accent_pink = (255, 0, 255)
 
         # Prepare image
         self.__image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
@@ -86,21 +91,21 @@ class THMProfileScraper:
         self.__render_avatar(accent_green, name_font, profile, width, scale)
 
         self.__draw.text((width - sc(20), sc(15)), profile.get('username', ''), font=name_font,
-                         fill=text_white, anchor="ra")
+                         fill=accent_white, anchor="ra")
 
         # --- Stats Grid ---
         stats_data = [
-                ("Level", str(profile.get('level')),
+                ("Level", self.__get_level_name(int(profile.get('level'))), accent_red,
                  "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/shield-alt.svg"),
-                ("Rank", f"#{profile.get('rank')}",
+                ("Rank", f"#{profile.get('rank')}", accent_pink,
                  "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/trophy.svg"),
-                ("Points", f"{int(profile.get('totalPoints', 0)):,}",
+                ("Points", f"{int(profile.get('totalPoints', 0)):,}", accent_yellow,
                  "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/bolt.svg"),
-                ("Top", f"{profile.get('topPercentage')}%",
+                ("Top", f"{profile.get('topPercentage')}%", accent_green,
                  "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/globe.svg"),
-                ("Streak", f"{profile.get('streak')} days",
+                ("Streak", f"{profile.get('streak')} days", accent_cyan,
                  "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/fire.svg"),
-                ("Rooms", str(profile.get('completedRoomsNumber')),
+                ("Rooms", str(profile.get('completedRoomsNumber')), accent_brown,
                  "https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/cube.svg"),
         ]
 
@@ -109,7 +114,7 @@ class THMProfileScraper:
         cell_width = (width - sc(40)) // cols
         cell_height = sc(45)
 
-        for i, (label, value, icon_url) in enumerate(stats_data):
+        for i, (label, value, color, icon_url) in enumerate(stats_data):
             row = i // cols
             col = i % cols
             x = sc(20) + col * cell_width
@@ -125,7 +130,7 @@ class THMProfileScraper:
                     icon_bytes.seek(0)
 
                     icon_mask = ImageOps.invert(Image.open(icon_bytes).convert("L"))
-                    icon_img = Image.new("RGBA", icon_mask.size, accent_green + (255,))
+                    icon_img = Image.new("RGBA", icon_mask.size, color + (255,))
                     icon_img.putalpha(icon_mask)
 
                     # Resize icon
@@ -142,8 +147,8 @@ class THMProfileScraper:
                 self.__log.warning(f"Failed to load icon for {label}: {e}")
                 text_offset = 0
 
-            self.__draw.text((x + text_offset, y), label.upper(), font=stat_label_font, fill=text_grey)
-            self.__draw.text((x + text_offset, y + sc(18)), value, font=stat_value_font, fill=text_white)
+            self.__draw.text((x + text_offset, y), label.upper(), font=stat_label_font, fill=accent_grey)
+            self.__draw.text((x + text_offset, y + sc(18)), value, font=stat_value_font, fill=accent_green)
 
         # Save the image
         output_path = os.path.join(os.getcwd(), 'tryHackMe.png')
@@ -152,6 +157,32 @@ class THMProfileScraper:
 
         self.__image.save(output_path)
         self.__log.info(f'Enhanced badge saved to {output_path}')
+
+    def __get_level_name(self, level: int) -> str:
+        level_names = {
+                1 : '0x1 - Neophyte',
+                2 : '0x2 - Apprentice',
+                3 : '0x3 - Pathfinder',
+                4 : '0x4 - Seeker',
+                5 : '0x5 - Visionary',
+                6 : '0x6 - Voyager',
+                7 : '0x7 - Adept',
+                8 : '0x8 - Hacker',
+                9 : '0x9 - Mage',
+                10: '0xA - Wizard',
+                11: '0xB - Master',
+                12: '0xC - Guru',
+                13: '0xD - Legend',
+                14: '0xE - Gardian',
+                15: '0xF - TITAN',
+                16: '0x10 - SAGE',
+                17: '0x11 - VANGUARD',
+                18: '0x12 - SHOGUN',
+                19: '0x13 - ASCENDED',
+                20: '0x14 - MYTHIC',
+                21: '0x15 - GRANDMASTER'
+        }
+        return level_names[level]
 
     def __draw_corners(self, bg_color: tuple[int, int, int], card_color: tuple[int, int, int], height: int, width: int,
                        scale: float):
