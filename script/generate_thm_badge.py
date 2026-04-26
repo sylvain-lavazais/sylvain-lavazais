@@ -64,7 +64,7 @@ class THMBadgeGenerator:
         self.__log.info('Generating badge')
 
         # --- Configuration ---
-        self.__scale = 2
+        self.__scale = 1
 
         width, height = self.__scale_value(350), self.__scale_value(180)
         bg_color = (20, 29, 45)  # Deep THM Blue
@@ -100,8 +100,8 @@ class THMBadgeGenerator:
         stats_data = [
                 ('Level', self.__get_level_name(int(profile.get('level'))), accent_red,
                  'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/shield-alt.svg'),
-                ['Rank', f'#{profile.get("rank")}', accent_pink,
-                 'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/trophy.svg'],
+                ('Rank', f'#{profile.get("rank")}', accent_pink,
+                 'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/trophy.svg'),
                 ('Points', f'{int(profile.get("totalPoints", 0)):,}', accent_yellow,
                  'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/bolt.svg'),
                 ('Top', f'{profile.get("topPercentage")}%', accent_green,
@@ -155,6 +155,9 @@ class THMBadgeGenerator:
                              fill=accent_green)
 
         # Save the image
+        self.__save_the_image()
+
+    def __save_the_image(self):
         output_path = os.path.join(os.getcwd(), 'tryHackMe.png')
         if os.path.basename(os.getcwd()) == 'script':
             output_path = os.path.join(os.path.dirname(os.getcwd()), 'tryHackMe.png')
