@@ -35,9 +35,9 @@ jobs:
 
       - name: Updating tryHackMe badge image
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
+          python -m venv ./.venv
+          source ./.venv/bin/activate
           python -m pip install --upgrade pip
           sudo apt install libcairo2-dev pkg-config
-          pip install -r script/requirements.txt
-          python script/scrap_thm_profile.py
+          pip install -r ./script/requirements.txt
+          python ./script/generate_thm_profile.py Li77leSh4rk
