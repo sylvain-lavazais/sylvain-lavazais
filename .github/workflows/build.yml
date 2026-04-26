@@ -35,6 +35,7 @@ jobs:
 
       - name: Updating tryHackMe badge image
         run: |
+          ls -al
           python -m venv ./.venv
           source ./.venv/bin/activate
           python -m pip install --upgrade pip
