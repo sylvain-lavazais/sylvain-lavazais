@@ -39,6 +39,7 @@ jobs:
           python -m venv ./.venv
           source ./.venv/bin/activate
           python -m pip install --upgrade pip
+          sudo apt install libcairo2-dev pkg-config
           pip install --force-reinstall --no-cache-dir pycairo
           pip install -r ./script/requirements.txt
           python ./script/scrap_thm_profile.py
