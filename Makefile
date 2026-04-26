@@ -1,6 +1,5 @@
 .DEFAULT_GOAL := help
 APPLICATION_TITLE := Personal Profile on GH \n ======================
-THM_USERNAME := Li77leSh4rk
 
 .PHONY:update-thm-badge push-thm-badge help
 
@@ -10,7 +9,7 @@ THM_USERNAME := Li77leSh4rk
 
 update-thm-badge: .resolve-deps ## update tryHackMe badge
 	@echo "=> $@"
-	@./script/scrap_thm_profile.py $(THM_USERNAME)
+	@./script/generate_thm_badge.py Li77leSh4rk
 
 push-thm-badge: update-thm-badge ## update and push tryHackMe badge
 	@echo "=> $@"
@@ -24,6 +23,7 @@ push-thm-badge: update-thm-badge ## update and push tryHackMe badge
 
 .resolve-deps:
 	@echo "=> $@"
+	@python -m pip install --upgrade pip
 	@pip install -r ./script/requirements.txt
 
 # See https://www.thapaliya.com/en/writings/well-documented-makefiles/

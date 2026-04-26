@@ -20,6 +20,14 @@ jobs:
         with:
           python-version: '3.14'
 
+      - name: Cache virtualenv
+        uses: actions/cache@v5.0.5
+        with:
+          path: ./.venv/
+          key: ${{ runner.os }}-3.14-venv-${{ hashFiles('script/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-3.14-venv-${{ hashFiles('script/requirements.txt') }}
+
       - name: Set-up Git
         run: |
           git config --global user.name '${{ secrets.NAME }}'
@@ -28,7 +36,12 @@ jobs:
 
       - name: Updating tryHackMe badge image
         run: |
-          make push-thm-badge
+          python --version
+          python -m venv ./.venv
+          source ./.venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r ./script/requirements.txt
+          python ./script/scrap_thm_profile.py
 
   github-metrics:
     runs-on: ubuntu-latest
