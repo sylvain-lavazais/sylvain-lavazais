@@ -64,7 +64,7 @@ class THMBadgeGenerator:
     self.__log.info('Generating badge')
 
     # --- Configuration ---
-    self.__scale = 1
+    self.__scale = 1.5
 
     width, height = self.__scale_value(350), self.__scale_value(180)
     bg_color = (20, 29, 45)  # Deep THM Blue
