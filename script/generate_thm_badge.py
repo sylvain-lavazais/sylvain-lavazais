@@ -64,7 +64,7 @@ class THMBadgeGenerator:
     self.__log.info('Generating badge')
 
     # --- Configuration ---
-    self.__scale = 1.5
+    self.__scale = 1
 
     width, height = self.__scale_value(350), self.__scale_value(180)
     bg_color = (20, 29, 45)  # Deep THM Blue
@@ -186,27 +186,27 @@ class THMBadgeGenerator:
 
   def __get_level_name(self, level: int) -> str:
     level_names = {
-        1 : '[0x1 - Neophyte]',
-        2 : '[0x2 - Apprentice]',
-        3 : '[0x3 - Pathfinder]',
-        4 : '[0x4 - Seeker]',
-        5 : '[0x5 - Visionary]',
-        6 : '[0x6 - Voyager]',
-        7 : '[0x7 - Adept]',
-        8 : '[0x8 - Hacker]',
-        9 : '[0x9 - Mage]',
-        10: '[0xA - Wizard]',
-        11: '[0xB - Master]',
-        12: '[0xC - Guru]',
-        13: '[0xD - Legend]',
-        14: '[0xE - Gardian]',
-        15: '[0xF - TITAN]',
-        16: '[0x10 - SAGE]',
-        17: '[0x11 - VANGUARD]',
-        18: '[0x12 - SHOGUN]',
-        19: '[0x13 - ASCENDED]',
-        20: '[0x14 - MYTHIC]',
-        21: '[0x15 - GRANDMASTER]'
+        1 : '[0x1-Neophyte]',
+        2 : '[0x2-Apprentice]',
+        3 : '[0x3-Pathfinder]',
+        4 : '[0x4-Seeker]',
+        5 : '[0x5-Visionary]',
+        6 : '[0x6-Voyager]',
+        7 : '[0x7-Adept]',
+        8 : '[0x8-Hacker]',
+        9 : '[0x9-Mage]',
+        10: '[0xA-Wizard]',
+        11: '[0xB-Master]',
+        12: '[0xC-Guru]',
+        13: '[0xD-Legend]',
+        14: '[0xE-Gardian]',
+        15: '[0xF-TITAN]',
+        16: '[0x10-SAGE]',
+        17: '[0x11-VANGUARD]',
+        18: '[0x12-SHOGUN]',
+        19: '[0x13-ASCENDED]',
+        20: '[0x14-MYTHIC]',
+        21: '[0x15-GRANDMASTER]'
     }
     return level_names[level]
 
@@ -308,7 +308,7 @@ class THMBadgeGenerator:
     try:
       name_font = ImageFont.truetype(font_path, self.__scale_value(20))
       stat_label_font = ImageFont.truetype(font_path, self.__scale_value(14))
-      stat_value_font = ImageFont.truetype(font_path, self.__scale_value(16))
+      stat_value_font = ImageFont.truetype(font_path, self.__scale_value(14))
     except Exception:
       name_font = ImageFont.load_default()
       stat_label_font = ImageFont.load_default()
