@@ -1,0 +1,31 @@
+name: Profile
+on:
+  # Schedule updates (each hour)
+  #  schedule: [{cron: "0 0 * * *"}]
+  # Lines below let you run workflow manually and on each commit
+  workflow_dispatch:
+  push: {branches: ["main"]}
+jobs:
+  tryHackMe-badge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Set-up Git
+        run: |
+          git config --global user.name '${{ secrets.NAME }}'
+          git config --global user.email '${{ secrets.EMAIL }}'
+          git remote set-url origin https://x-access-token:${{ secrets.METRICS_TOKEN }}@github.com/${{ github.repository }}
+
+      - name: Updating tryHackMe badge image
+        run: |
+          sudo apt install libcairo2-dev pkg-config
+          make push-thm-badge
