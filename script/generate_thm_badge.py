@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import logging
 import os
 import sys
@@ -17,14 +18,14 @@ from svglib.svglib import svg2rlg
 
 
 class THMBadgeGenerator:
-  __username: str
+  __json_file: str
   __log: FilteringBoundLogger
   __image: Image.Image
   __draw: ImageDraw.ImageDraw
   __image_dest_path: str
   __scale: float
 
-  def __init__(self, log_level: str, username: str, image_dest_path: str) -> None:
+  def __init__(self, log_level: str, image_dest_path: str, json_source: str) -> None:
 
     structlog.configure(
         wrapper_class=structlog.make_filtering_bound_logger(
@@ -32,24 +33,22 @@ class THMBadgeGenerator:
         ),
     )
     self.__log = structlog.get_logger()
-    self.__username = username
+    self.__json_file = json_source
     self.__image_dest_path = image_dest_path
 
     self.__log.debug('starting THMProfileScraper with')
-    self.__log.debug(f'username: {username}')
+    self.__log.debug(f'json file source: {json_source}')
     self.__log.debug(f'log_level: {log_level}')
 
   def __scale_value(self, val: int):
     return int(val * self.__scale)
 
-  def __fetch_profile(self, username: str) -> Optional[Dict[str, str]]:
-    self.__log.info(f'fetching profile for {username}')
-    url = f'https://tryhackme.com/api/v2/public-profile?username={username}'
+  def __fetch_profile(self, json_file: str) -> Optional[Dict[str, str]]:
+    self.__log.info(f'fetching profile in {json_file}')
 
     try:
-      response = requests.get(url)
-      response.raise_for_status()
-      data = response.json()
+      with open(json_file, 'r') as f:
+        data = json.load(f)
 
       if data.get('status') == 'success':
         return data.get('data')
@@ -317,7 +316,7 @@ class THMBadgeGenerator:
 
   def run(self) -> None:
     self.__log.info('Generating THM badge')
-    profile = self.__fetch_profile(self.__username)
+    profile = self.__fetch_profile(self.__json_file)
 
     if profile:
       self.__log.info(f"--- TryHackMe Profile Header: {profile.get('username')} ---")
@@ -330,7 +329,7 @@ class THMBadgeGenerator:
       self.__log.info(f'Top:        {profile.get("topPercentage")} %')
       self.__log.info(f'Country:    {profile.get("country")}')
       self.__log.info(f'Avatar:     {profile.get("avatar")}')
-      self.__log.info(f'username:   {self.__username}')
+      self.__log.info(f'username:   {self.__json_file}')
 
       self.__generate_badge(profile)
 
@@ -341,8 +340,8 @@ class THMBadgeGenerator:
     help='set the logger level, choose between [CRITICAL / ERROR / WARNING / INFO / '
          'DEBUG]', show_default=True)
 @click.option('--image_dest_path', default='../tryHackMe.png', help='path to save the badge image')
-@click.argument('username', type=click.STRING)
-def command_line(log_level: str, username: str, image_dest_path: str) -> None:
+@click.option('--source_json', default='./json_source.json', help='path to source json file')
+def command_line(log_level: str, image_dest_path: str, source_json: str) -> None:
   """
   THM profile scraper.\n
   USERNAME = THM profile username. \n
@@ -351,7 +350,7 @@ def command_line(log_level: str, username: str, image_dest_path: str) -> None:
   """
 
   print(f'=== Start {THMBadgeGenerator.__name__} ===')
-  runner = THMBadgeGenerator(log_level, username, image_dest_path)
+  runner = THMBadgeGenerator(log_level, image_dest_path, source_json)
   runner.run()
   print(f'=== End {THMBadgeGenerator.__name__} ===')
 
