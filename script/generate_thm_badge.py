@@ -25,7 +25,7 @@ class THMBadgeGenerator:
   __image_dest_path: str
   __scale: float
 
-  def __init__(self, log_level: str, image_dest_path: str, json_source: str) -> None:
+  def __init__(self, log_level: str, image_dest_path: str, json_source: str, username: Optional[str] = None) -> None:
 
     structlog.configure(
         wrapper_class=structlog.make_filtering_bound_logger(
@@ -35,17 +35,44 @@ class THMBadgeGenerator:
     self.__log = structlog.get_logger()
     self.__json_file = json_source
     self.__image_dest_path = image_dest_path
+    self.__username = username
 
-    self.__log.debug('starting THMProfileScraper with')
+    # Silence noisy loggers
+    logging.getLogger('svglib').setLevel(logging.ERROR)
+    logging.getLogger('reportlab').setLevel(logging.ERROR)
+
+    self.__log.debug('starting THMBadgeGenerator with')
     self.__log.debug(f'json file source: {json_source}')
+    self.__log.debug(f'username: {username}')
     self.__log.debug(f'log_level: {log_level}')
 
   def __scale_value(self, val: int):
     return int(val * self.__scale)
 
   def __fetch_profile(self, json_file: str) -> Optional[Dict[str, str]]:
-    self.__log.info(f'fetching profile in {json_file}')
+    if self.__username:
+      self.__log.info(f'fetching profile for user {self.__username}')
+      url = f'https://tryhackme.com/api/v2/public/profile?username={self.__username}'
+      try:
+        response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        response.raise_for_status()
+        data = response.json()
+      except Exception as e:
+        self.__log.warning(f'Failed to fetch profile from API: {e}')
+        self.__log.info('Falling back to local JSON file')
+        return self.__fetch_from_file(json_file)
+    else:
+      return self.__fetch_from_file(json_file)
 
+    if data.get('status') == 'success':
+      return data.get('data')
+    else:
+      self.__log.warning(f'API Error: {data.get("message", "Unknown error")}')
+      self.__log.info('Falling back to local JSON file')
+      return self.__fetch_from_file(json_file)
+
+  def __fetch_from_file(self, json_file: str) -> Optional[Dict[str, str]]:
+    self.__log.info(f'fetching profile from file: {json_file}')
     try:
       with open(json_file, 'r') as f:
         data = json.load(f)
@@ -53,10 +80,16 @@ class THMBadgeGenerator:
       if data.get('status') == 'success':
         return data.get('data')
       else:
-        self.__log.critical(f'Error: {data.get('message', 'Unknown error')}')
+        self.__log.critical(f'Error in JSON file: {data.get("message", "Unknown error")}')
         sys.exit(4)
-    except requests.exceptions.RequestException as e:
-      self.__log.critical(f'Request failed: {e}')
+    except FileNotFoundError:
+      self.__log.critical(f'JSON file not found: {json_file}')
+      sys.exit(4)
+    except json.JSONDecodeError:
+      self.__log.critical(f'Failed to decode JSON from file: {json_file}')
+      sys.exit(4)
+    except Exception as e:
+      self.__log.critical(f'Unexpected error reading file: {e}')
       sys.exit(4)
 
   def __generate_badge(self, profile: Dict[str, str]) -> None:
@@ -143,7 +176,7 @@ class THMBadgeGenerator:
 
       # Render Icon
       try:
-        response = requests.get(icon_url)
+        response = requests.get(icon_url, headers={'User-Agent': 'Mozilla/5.0'})
         if response.status_code == 200:
           drawing: Drawing = svg2rlg(BytesIO(response.content))
           icon_bytes = BytesIO()
@@ -176,12 +209,15 @@ class THMBadgeGenerator:
     self.__save_the_image()
 
   def __save_the_image(self):
-    output_path = os.path.join(os.getcwd(), 'tryHackMe.png')
-    if os.path.basename(os.getcwd()) == 'script':
-      output_path = os.path.join(os.path.dirname(os.getcwd()), 'tryHackMe.png')
+    output_path = self.__image_dest_path
+    # Ensure the path is absolute or relative to current directory correctly
+    if not os.path.isabs(output_path):
+      # If running from 'script' directory, and dest starts with '..', it should go to parent
+      # But usually we run from project root.
+      pass
 
     self.__image.save(output_path)
-    self.__log.info(f'Saving badge to {output_path}')
+    self.__log.info(f'Saving badge to {os.path.abspath(output_path)}')
 
   def __get_level_name(self, level: int) -> str:
     level_names = {
@@ -198,7 +234,7 @@ class THMBadgeGenerator:
         11: '[0xB-Master]',
         12: '[0xC-Guru]',
         13: '[0xD-Legend]',
-        14: '[0xE-Gardian]',
+        14: '[0xE-Guardian]',
         15: '[0xF-TITAN]',
         16: '[0x10-SAGE]',
         17: '[0x11-VANGUARD]',
@@ -207,7 +243,7 @@ class THMBadgeGenerator:
         20: '[0x14-MYTHIC]',
         21: '[0x15-GRANDMASTER]'
     }
-    return level_names[level]
+    return level_names.get(level, f'[Level {level}]')
 
   def __draw_corners(self, bg_color: tuple[int, int, int], card_color: tuple[int, int, int], height: int, width: int):
 
@@ -248,7 +284,7 @@ class THMBadgeGenerator:
             text_bbox = self.__draw.textbbox((0, 0), profile.get('username', ''), font=name_font)
             text_width = text_bbox[2] - text_bbox[0]
           except Exception as e:
-            self.__log.warn(f'Failed to set avatar text: {e}')
+            self.__log.warning(f'Failed to set avatar text: {e}')
             self.__log.info('Fallback to default size text: 100')
             text_width = self.__scale_value(100)
 
@@ -266,14 +302,14 @@ class THMBadgeGenerator:
 
           self.__image.paste(avatar_img, (avatar_x, avatar_y), mask)
       except Exception as e:
-        self.__log.warn(f'Failed to load avatar: {e}')
+        self.__log.warning(f'Failed to load avatar: {e}')
 
   def __render_thm_logo(self):
 
     # Official Logo
     logo_url = "https://assets.tryhackme.com/img/logo/tryhackme_logo_full.svg"
     try:
-      response = requests.get(logo_url)
+      response = requests.get(logo_url, headers={'User-Agent': 'Mozilla/5.0'})
       if response.status_code == 200:
         # Convert SVG to Drawing object
         drawing: Drawing = svg2rlg(BytesIO(response.content))
@@ -297,9 +333,9 @@ class THMBadgeGenerator:
 
           self.__image.paste(logo_img, (self.__scale_value(20), self.__scale_value(11)), logo_img)
         else:
-          self.__log.warn('Failed to load official logo')
+          self.__log.warning('Failed to load official logo')
     except Exception as e:
-      self.__log.warn(f'Failed to load official logo: {e}')
+      self.__log.warning(f'Failed to load official logo: {e}')
 
   def __load_fonts(self) -> Tuple[FreeTypeFont, FreeTypeFont, FreeTypeFont]:
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -328,20 +364,21 @@ class THMBadgeGenerator:
       self.__log.info(f'Streak:     {profile.get("streak")} days')
       self.__log.info(f'Top:        {profile.get("topPercentage")} %')
       self.__log.info(f'Country:    {profile.get("country")}')
-      self.__log.info(f'Avatar:     {profile.get("avatar")}')
-      self.__log.info(f'username:   {self.__json_file}')
+      self.__log.info(f'Username:   {profile.get("username")}')
+      self.__log.info(f'Source:     {self.__json_file if not self.__username else "API"}')
 
       self.__generate_badge(profile)
 
 
 @click.command()
+@click.argument('username', required=False)
 @click.option(
     '--log_level', default='INFO',
     help='set the logger level, choose between [CRITICAL / ERROR / WARNING / INFO / '
          'DEBUG]', show_default=True)
-@click.option('--image_dest_path', default='../tryHackMe.png', help='path to save the badge image')
+@click.option('--image_dest_path', default='./tryHackMe.png', help='path to save the badge image')
 @click.option('--source_json', default='./json_source.json', help='path to source json file')
-def command_line(log_level: str, image_dest_path: str, source_json: str) -> None:
+def command_line(username: Optional[str], log_level: str, image_dest_path: str, source_json: str) -> None:
   """
   THM profile scraper.\n
   USERNAME = THM profile username. \n
@@ -350,7 +387,7 @@ def command_line(log_level: str, image_dest_path: str, source_json: str) -> None
   """
 
   print(f'=== Start {THMBadgeGenerator.__name__} ===')
-  runner = THMBadgeGenerator(log_level, image_dest_path, source_json)
+  runner = THMBadgeGenerator(log_level, image_dest_path, source_json, username)
   runner.run()
   print(f'=== End {THMBadgeGenerator.__name__} ===')
 

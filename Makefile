@@ -9,7 +9,7 @@ APPLICATION_TITLE := Personal Profile on GH \n ======================
 
 update-thm-badge: .resolve-deps ## update tryHackMe badge
 	@echo "=> $@"
-	@./script/generate_thm_badge.py
+	@./script/generate_thm_badge.py $(USERNAME)
 
 push-thm-badge: update-thm-badge ## update and push tryHackMe badge
 	@echo "=> $@"
