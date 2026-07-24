@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+Generate TryHackMe profile badge.
+Uses the TryHackMe API to fetch profile data and generates a badge image.
+"""
 import json
 import logging
 import os
@@ -12,96 +16,127 @@ import structlog
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from PIL.ImageFont import FreeTypeFont
 from reportlab.graphics import renderPM
-from reportlab.graphics.shapes import Drawing
-from structlog.typing import FilteringBoundLogger
 from svglib.svglib import svg2rlg
+
+USER_AGENT_HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
 
 class THMBadgeGenerator:
-  __json_file: str
-  __log: FilteringBoundLogger
+  __username: str
+  __log: structlog.typing.FilteringBoundLogger
   __image: Image.Image
   __draw: ImageDraw.ImageDraw
   __image_dest_path: str
   __scale: float
 
-  def __init__(self, log_level: str, image_dest_path: str, json_source: str, username: Optional[str] = None) -> None:
-
+  def __init__(self, log_level: str, username: str, image_dest_path: str,
+               cookies_file: Optional[str] = None, json_source: Optional[str] = None) -> None:
+    """Initialize the badge generator."""
     structlog.configure(
-        wrapper_class=structlog.make_filtering_bound_logger(
-            logging.getLevelName(log_level)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(logging.getLevelName(log_level)),
     )
     self.__log = structlog.get_logger()
-    self.__json_file = json_source
-    self.__image_dest_path = image_dest_path
     self.__username = username
+    self.__image_dest_path = image_dest_path
+    self.__json_source = json_source
+    self.__cookies = self.__load_cookies(cookies_file)
 
-    # Silence noisy loggers
-    logging.getLogger('svglib').setLevel(logging.ERROR)
-    logging.getLogger('reportlab').setLevel(logging.ERROR)
+  def __load_cookies(self, cookies_file: Optional[str]) -> Dict[str, str]:
+    """Load cookies from a Netscape-format file."""
+    if not cookies_file:
+      return {}
 
-    self.__log.debug('starting THMBadgeGenerator with')
-    self.__log.debug(f'json file source: {json_source}')
-    self.__log.debug(f'username: {username}')
-    self.__log.debug(f'log_level: {log_level}')
-
-  def __scale_value(self, val: int):
-    return int(val * self.__scale)
-
-  def __fetch_profile(self, json_file: str) -> Optional[Dict[str, str]]:
-    if self.__username:
-      self.__log.info(f'fetching profile for user {self.__username}')
-      url = f'https://tryhackme.com/api/v2/public/profile?username={self.__username}'
-      try:
-        response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-        response.raise_for_status()
-        data = response.json()
-      except Exception as e:
-        self.__log.warning(f'Failed to fetch profile from API: {e}')
-        self.__log.info('Falling back to local JSON file')
-        return self.__fetch_from_file(json_file)
-    else:
-      return self.__fetch_from_file(json_file)
-
-    if data.get('status') == 'success':
-      return data.get('data')
-    else:
-      self.__log.warning(f'API Error: {data.get("message", "Unknown error")}')
-      self.__log.info('Falling back to local JSON file')
-      return self.__fetch_from_file(json_file)
-
-  def __fetch_from_file(self, json_file: str) -> Optional[Dict[str, str]]:
-    self.__log.info(f'fetching profile from file: {json_file}')
+    cookies = {}
     try:
-      with open(json_file, 'r') as f:
-        data = json.load(f)
+      with open(cookies_file, 'r') as f:
+        for line in f:
+          line = line.strip()
+          if not line or line.startswith('#'):
+            continue
+          parts = line.split('\t')
+          if len(parts) >= 7:
+            cookies[parts[5]] = parts[6]
+    except Exception as e:
+      self.__log.warning(f'Failed to load cookies: {e}')
+    return cookies
 
+  def __fetch_profile(self) -> Optional[Dict]:
+    """Fetch profile data from TryHackMe API, with fallback to JSON file."""
+    self.__log.info(f'Fetching profile for {self.__username}')
+    url = f'https://tryhackme.com/api/v2/public-profile?username={self.__username}'
+
+    headers = {
+        'accept'         : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'accept-language': 'en-US,en;q=0.9,fr;q=0.8',
+        'cache-control'  : 'no-cache',
+        'pragma'         : 'no-cache',
+        'user-agent'     : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+    }
+
+    try:
+      session = requests.Session()
+      if self.__cookies:
+        session.cookies.update(self.__cookies)
+
+      response = session.get(url, headers=headers, timeout=15)
+      response.raise_for_status()
+
+      # Check if response is JSON
+      if 'application/json' not in response.headers.get('content-type', ''):
+        self.__log.warning('API returned non-JSON response')
+        return self.__fetch_from_json()
+
+      data = response.json()
+      if data.get('status') == 'success':
+        self.__log.info('Successfully fetched profile from API')
+        if self.__json_source:
+          self.__save_json(data)
+        return data.get('data')
+
+      self.__log.warning(f'API Error: {data.get("message", "Unknown error")}')
+      return self.__fetch_from_json()
+
+    except requests.exceptions.RequestException as e:
+      self.__log.warning(f'API request failed: {e}')
+      return self.__fetch_from_json()
+
+  def __fetch_from_json(self) -> Optional[Dict]:
+    """Load profile data from local JSON file."""
+    if not self.__json_source:
+      return None
+
+    try:
+      with open(self.__json_source, 'r') as f:
+        data = json.load(f)
       if data.get('status') == 'success':
         return data.get('data')
-      else:
-        self.__log.critical(f'Error in JSON file: {data.get("message", "Unknown error")}')
-        sys.exit(4)
-    except FileNotFoundError:
-      self.__log.critical(f'JSON file not found: {json_file}')
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+      self.__log.critical(f'Failed to read JSON: {e}')
       sys.exit(4)
-    except json.JSONDecodeError:
-      self.__log.critical(f'Failed to decode JSON from file: {json_file}')
-      sys.exit(4)
+    return None
+
+  def __save_json(self, data: Dict) -> None:
+    """Save API response to JSON file."""
+    try:
+      with open(self.__json_source, 'w') as f:
+        json.dump({'status': 'success', 'data': data.get('data')}, f, indent=2)
+      self.__log.info(f'Updated JSON file: {self.__json_source}')
     except Exception as e:
-      self.__log.critical(f'Unexpected error reading file: {e}')
-      sys.exit(4)
+      self.__log.warning(f'Failed to update JSON file: {e}')
 
-  def __generate_badge(self, profile: Dict[str, str]) -> None:
+  def __scale_value(self, val: int) -> int:
+    """Scale a value by the current scale factor."""
+    return int(val * self.__scale)
+
+  def __generate_badge(self, profile: Dict) -> None:
+    """Generate the badge image with profile data."""
     self.__log.info('Generating badge')
-
-    # --- Configuration ---
     self.__scale = 1
 
-    width, height = self.__scale_value(350), self.__scale_value(180)
-    bg_color = (20, 29, 45)  # Deep THM Blue
-    card_color = (30, 42, 60)  # Slightly lighter Blue
-    accent_green = (120, 230, 100)  # Vibrant Green
+    # Colors
+    bg_color = (20, 29, 45)
+    card_color = (30, 42, 60)
+    accent_green = (120, 230, 100)
     accent_white = (255, 255, 255)
     accent_grey = (160, 174, 192)
     accent_red = (255, 0, 0)
@@ -110,60 +145,54 @@ class THMBadgeGenerator:
     accent_brown = (255, 165, 0)
     accent_pink = (255, 0, 255)
 
-    # Prepare image
+    # Create image
+    width, height = self.__scale_value(350), self.__scale_value(180)
     self.__image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     self.__draw = ImageDraw.Draw(self.__image)
 
+    # Draw background
     self.__draw_corners(bg_color, card_color, height, width)
 
-    # --- Typography (Attempt to use system fonts, fallback to default) ---
+    # Load fonts
     name_font, stat_label_font, stat_value_font = self.__load_fonts()
 
-    # --- Header Content ---
+    # Render logo and avatar
     self.__render_thm_logo()
-
-    # --- Avatar ---
     self.__render_avatar(accent_green, name_font, profile, width)
 
-    self.__draw.text((width - self.__scale_value(20), self.__scale_value(15)), profile.get('username', ''),
-                     font=name_font, fill=accent_white, anchor="ra")
+    # Draw username
+    self.__draw.text((width - self.__scale_value(20), self.__scale_value(15)),
+                     profile.get('username', ''), font=name_font, fill=accent_white, anchor="ra")
 
-    # --- Stats Grid ---
+    # Render stats
+    self.__render_stats(profile, accent_grey, accent_green, accent_red, accent_pink,
+                        accent_yellow, accent_cyan, accent_brown, stat_label_font,
+                        stat_value_font, width)
+
+    # Save image
+    self.__save_the_image()
+
+  def __render_stats(self, profile: Dict, accent_grey: tuple, accent_green: tuple,
+                     accent_red: tuple, accent_pink: tuple, accent_yellow: tuple,
+                     accent_cyan: tuple, accent_brown: tuple,
+                     stat_label_font: FreeTypeFont, stat_value_font: FreeTypeFont,
+                     width: int) -> None:
+    """Render the statistics grid on the badge."""
     stats_data = [
-        (
-            'Level',
-            self.__get_level_name(int(profile.get('level'))),
-            accent_red,
-            'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/shield-alt.svg'
-        ),
-        (
-            'Rank',
-            f'#{profile.get("rank")}',
-            accent_pink,
-            'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/trophy.svg'),
-        (
-            'Points',
-            f'{int(profile.get("totalPoints", 0)):,}',
-            accent_yellow,
-            'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/bolt.svg'),
-        (
-            'Top',
-            f'{profile.get("topPercentage")}%',
-            accent_green,
-            'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/globe.svg'),
-        (
-            'Streak',
-            f'{profile.get("streak")} days',
-            accent_cyan,
-            'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/fire.svg'),
-        (
-            'Rooms',
-            str(profile.get('completedRoomsNumber')),
-            accent_brown,
-            'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/cube.svg'),
+        ('Level', self.__get_level_name(int(profile.get('level'))), accent_red,
+         'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/shield-alt.svg'),
+        ('Rank', f'#{profile.get("rank")}', accent_pink,
+         'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/trophy.svg'),
+        ('Points', f'{int(profile.get("totalPoints", 0)):,}', accent_yellow,
+         'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/bolt.svg'),
+        ('Top', f'{profile.get("topPercentage")}%', accent_green,
+         'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/globe.svg'),
+        ('Streak', f'{profile.get("streak")} days', accent_cyan,
+         'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/fire.svg'),
+        ('Rooms', str(profile.get('completedRoomsNumber')), accent_brown,
+         'https://raw.githubusercontent.com/FortAwesome/Font-Awesome/master/svgs/solid/cube.svg'),
     ]
 
-    # 2x3 Grid Layout
     cols = 3
     cell_width = (width - self.__scale_value(40)) // cols
     cell_height = self.__scale_value(45)
@@ -174,52 +203,50 @@ class THMBadgeGenerator:
       x = self.__scale_value(20) + col * cell_width
       y = self.__scale_value(70) + row * cell_height
 
-      # Render Icon
-      try:
-        response = requests.get(icon_url, headers={'User-Agent': 'Mozilla/5.0'})
-        if response.status_code == 200:
-          drawing: Drawing = svg2rlg(BytesIO(response.content))
-          icon_bytes = BytesIO()
-          renderPM.drawToFile(drawing, icon_bytes, fmt='PNG', bg=0xffffff)
-          icon_bytes.seek(0)
+      # Render icon
+      text_offset = self.__render_icon(x, y, icon_url, color)
 
-          icon_mask = ImageOps.invert(Image.open(icon_bytes).convert("L"))
-          icon_img = Image.new('RGBA', icon_mask.size, color + (255,))
-          icon_img.putalpha(icon_mask)
-
-          # Resize icon
-          icon_h = self.__scale_value(16)
-          icon_aspect = icon_img.width / icon_img.height
-          icon_w = int(icon_h * icon_aspect)
-          icon_img = icon_img.resize((icon_w, icon_h), Image.Resampling.LANCZOS)
-
-          self.__image.paste(icon_img, (x, y + self.__scale_value(1)), icon_img)
-          text_offset = icon_w + self.__scale_value(10)
-        else:
-          text_offset = 0
-      except Exception as e:
-        self.__log.warning(f'Failed to load icon for {label}: {e}')
-        text_offset = 0
-
+      # Render text
       self.__draw.text((x + text_offset, y), label.upper(), font=stat_label_font, fill=accent_grey)
-      self.__draw.text((x + text_offset, y + self.__scale_value(18)), value, font=stat_value_font,
-                       fill=accent_green)
+      self.__draw.text((x + text_offset, y + self.__scale_value(18)), value,
+                       font=stat_value_font, fill=accent_green)
 
-    # Save the image
-    self.__save_the_image()
+  def __render_icon(self, x: int, y: int, icon_url: str, color: tuple) -> int:
+    """Render an SVG icon and return the text offset."""
+    try:
+      response = requests.get(icon_url, headers=USER_AGENT_HEADERS, timeout=10)
+      if response.status_code == 200:
+        drawing = svg2rlg(BytesIO(response.content))
+        icon_bytes = BytesIO()
+        renderPM.drawToFile(drawing, icon_bytes, fmt='PNG', bg=0xffffff)
+        icon_bytes.seek(0)
 
-  def __save_the_image(self):
-    output_path = self.__image_dest_path
-    # Ensure the path is absolute or relative to current directory correctly
-    if not os.path.isabs(output_path):
-      # If running from 'script' directory, and dest starts with '..', it should go to parent
-      # But usually we run from project root.
-      pass
+        icon_mask = ImageOps.invert(Image.open(icon_bytes).convert('L'))
+        icon_img = Image.new('RGBA', icon_mask.size, color + (255,))
+        icon_img.putalpha(icon_mask)
+
+        icon_h = self.__scale_value(16)
+        icon_aspect = icon_img.width / icon_img.height
+        icon_w = int(icon_h * icon_aspect)
+        icon_img = icon_img.resize((icon_w, icon_h), Image.Resampling.LANCZOS)
+
+        self.__image.paste(icon_img, (x, y + self.__scale_value(1)), icon_img)
+        return icon_w + self.__scale_value(10)
+    except Exception as e:
+      self.__log.warning(f'Failed to load icon: {e}')
+    return 0
+
+  def __save_the_image(self) -> None:
+    """Save the generated badge image."""
+    output_path = os.path.join(os.getcwd(), self.__image_dest_path)
+    if os.path.basename(os.getcwd()) == 'script':
+      output_path = os.path.join(os.path.dirname(os.getcwd()), self.__image_dest_path)
 
     self.__image.save(output_path)
-    self.__log.info(f'Saving badge to {os.path.abspath(output_path)}')
+    self.__log.info(f'Saving badge to {output_path}')
 
   def __get_level_name(self, level: int) -> str:
+    """Get the name for a given level number."""
     level_names = {
         1 : '[0x1-Neophyte]',
         2 : '[0x2-Apprentice]',
@@ -245,99 +272,78 @@ class THMBadgeGenerator:
     }
     return level_names.get(level, f'[Level {level}]')
 
-  def __draw_corners(self, bg_color: tuple[int, int, int], card_color: tuple[int, int, int], height: int, width: int):
-
-    # Draw main card background with rounded corners
+  def __draw_corners(self, bg_color: tuple, card_color: tuple, height: int, width: int) -> None:
+    """Draw the rounded corners for the badge card."""
     radius = self.__scale_value(15)
     self.__draw.rounded_rectangle([0, 0, width, height], radius=radius, fill=bg_color)
 
-    # Draw header section with a different color/shade
     header_height = self.__scale_value(50)
     self.__draw.rounded_rectangle([0, 0, width, header_height], radius=radius, fill=card_color)
-    self.__draw.rectangle([0, header_height - radius, width, header_height],
-                          fill=card_color)  # Flatten bottom corners of header
+    self.__draw.rectangle([0, header_height - radius, width, header_height], fill=card_color)
 
-  def __render_avatar(self,
-                      color_accent: tuple[int, int, int],
-                      name_font: FreeTypeFont, profile: dict[str, str], width: int):
-
+  def __render_avatar(self, color_accent: tuple, name_font: FreeTypeFont,
+                      profile: Dict, width: int) -> None:
+    """Render the user avatar on the badge."""
     avatar_url = profile.get('avatar')
-    if avatar_url:
-      try:
-        response = requests.get(avatar_url)
-        if response.status_code == 200:
-          avatar_img = Image.open(BytesIO(response.content)).convert('RGBA')
+    if not avatar_url:
+      return
 
-          # Resize and make it circular
-          avatar_size = (self.__scale_value(36), self.__scale_value(36))
-          avatar_img = avatar_img.resize(avatar_size, Image.Resampling.LANCZOS)
+    try:
+      response = requests.get(avatar_url, headers=USER_AGENT_HEADERS, timeout=10)
+      if response.status_code == 200:
+        avatar_img = Image.open(BytesIO(response.content)).convert('RGBA')
+        avatar_size = (self.__scale_value(36), self.__scale_value(36))
+        avatar_img = avatar_img.resize(avatar_size, Image.Resampling.LANCZOS)
 
-          mask = Image.new('L', avatar_size, 0)
-          mask_draw = ImageDraw.Draw(mask)
-          mask_draw.ellipse((0, 0) + avatar_size, fill=255)
+        mask = Image.new('L', avatar_size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.ellipse((0, 0) + avatar_size, fill=255)
 
-          # Background circle for avatar (border effect)
-          # We want the avatar to be close to the username, which is right-aligned
-          # Username ends at width - 20 * scale.
-          # Calculate text width to place avatar before it
-          try:
-            text_bbox = self.__draw.textbbox((0, 0), profile.get('username', ''), font=name_font)
-            text_width = text_bbox[2] - text_bbox[0]
-          except Exception as e:
-            self.__log.warning(f'Failed to set avatar text: {e}')
-            self.__log.info('Fallback to default size text: 100')
-            text_width = self.__scale_value(100)
+        try:
+          text_bbox = self.__draw.textbbox((0, 0), profile.get('username', ''), font=name_font)
+          text_width = text_bbox[2] - text_bbox[0]
+        except Exception:
+          text_width = self.__scale_value(100)
 
-          avatar_x = width - self.__scale_value(20) - text_width - self.__scale_value(10) - avatar_size[0]
-          avatar_y = self.__scale_value(7)
-          border = max(1, self.__scale_value(2))
-          self.__draw.ellipse(
-              (
-                  avatar_x - border,
-                  avatar_y - border,
-                  avatar_x + avatar_size[0] + border,
-                  avatar_y + avatar_size[1] + border
-              ),
-              fill=color_accent)
+        avatar_x = width - self.__scale_value(20) - text_width - self.__scale_value(10) - avatar_size[0]
+        avatar_y = self.__scale_value(7)
+        border = max(1, self.__scale_value(2))
 
-          self.__image.paste(avatar_img, (avatar_x, avatar_y), mask)
-      except Exception as e:
-        self.__log.warning(f'Failed to load avatar: {e}')
+        self.__draw.ellipse(
+            (avatar_x - border, avatar_y - border,
+             avatar_x + avatar_size[0] + border, avatar_y + avatar_size[1] + border),
+            fill=color_accent)
+        self.__image.paste(avatar_img, (avatar_x, avatar_y), mask)
+    except Exception as e:
+      self.__log.warning(f'Failed to load avatar: {e}')
 
-  def __render_thm_logo(self):
-
-    # Official Logo
+  def __render_thm_logo(self) -> None:
+    """Render the TryHackMe logo on the badge."""
     logo_url = "https://assets.tryhackme.com/img/logo/tryhackme_logo_full.svg"
     try:
-      response = requests.get(logo_url, headers={'User-Agent': 'Mozilla/5.0'})
+      response = requests.get(logo_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
       if response.status_code == 200:
-        # Convert SVG to Drawing object
-        drawing: Drawing = svg2rlg(BytesIO(response.content))
-
+        drawing = svg2rlg(BytesIO(response.content))
         if drawing:
-          # Render Drawing object to PNG in memory (on black background to use as mask)
           logo_bytes = BytesIO()
           renderPM.drawToFile(drawing, logo_bytes, fmt='PNG', bg=0x000000)
           logo_bytes.seek(0)
 
-          # Use the luminance as a mask for a solid white color to get transparency
           logo_mask = Image.open(logo_bytes).convert('L')
           logo_img = Image.new('RGBA', logo_mask.size, (255, 255, 255, 255))
           logo_img.putalpha(logo_mask)
 
-          # Resize logo to fit header
           logo_h = self.__scale_value(28)
           logo_aspect = logo_img.width / logo_img.height
           logo_w = int(logo_h * logo_aspect)
           logo_img = logo_img.resize((logo_w, logo_h), Image.Resampling.LANCZOS)
 
           self.__image.paste(logo_img, (self.__scale_value(20), self.__scale_value(11)), logo_img)
-        else:
-          self.__log.warning('Failed to load official logo')
     except Exception as e:
-      self.__log.warning(f'Failed to load official logo: {e}')
+      self.__log.warning(f'Failed to load logo: {e}')
 
   def __load_fonts(self) -> Tuple[FreeTypeFont, FreeTypeFont, FreeTypeFont]:
+    """Load the fonts for the badge."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     font_path = os.path.join(script_dir, 'fonts', 'FiraCode-Regular.ttf')
     try:
@@ -345,49 +351,40 @@ class THMBadgeGenerator:
       stat_label_font = ImageFont.truetype(font_path, self.__scale_value(14))
       stat_value_font = ImageFont.truetype(font_path, self.__scale_value(14))
     except Exception:
-      name_font = ImageFont.load_default()
-      stat_label_font = ImageFont.load_default()
-      stat_value_font = ImageFont.load_default()
+      name_font = stat_label_font = stat_value_font = ImageFont.load_default()
     return name_font, stat_label_font, stat_value_font
 
   def run(self) -> None:
+    """Main entry point for the badge generator."""
     self.__log.info('Generating THM badge')
-    profile = self.__fetch_profile(self.__json_file)
+    profile = self.__fetch_profile()
 
-    if profile:
-      self.__log.info(f"--- TryHackMe Profile Header: {profile.get('username')} ---")
-      self.__log.info(f'Level:      {profile.get("level")}')
-      self.__log.info(f'Rank:       {profile.get("rank")}')
-      self.__log.info(f'Points:     {profile.get("totalPoints")}')
-      self.__log.info(f'Rooms:      {profile.get("completedRoomsNumber")}')
-      self.__log.info(f'Badges:     {profile.get("badgesNumber")}')
-      self.__log.info(f'Streak:     {profile.get("streak")} days')
-      self.__log.info(f'Top:        {profile.get("topPercentage")} %')
-      self.__log.info(f'Country:    {profile.get("country")}')
-      self.__log.info(f'Username:   {profile.get("username")}')
-      self.__log.info(f'Source:     {self.__json_file if not self.__username else "API"}')
+    if not profile:
+      self.__log.error('No profile data available')
+      sys.exit(1)
 
-      self.__generate_badge(profile)
+    self.__log.info(f"Profile: {profile.get('username')} | Level: {profile.get('level')} | "
+                    f"Points: {profile.get('totalPoints')} | Rooms: {profile.get('completedRoomsNumber')}")
+    self.__generate_badge(profile)
 
 
 @click.command()
-@click.argument('username', required=False)
-@click.option(
-    '--log_level', default='INFO',
-    help='set the logger level, choose between [CRITICAL / ERROR / WARNING / INFO / '
-         'DEBUG]', show_default=True)
-@click.option('--image_dest_path', default='./tryHackMe.png', help='path to save the badge image')
-@click.option('--source_json', default='./json_source.json', help='path to source json file')
-def command_line(username: Optional[str], log_level: str, image_dest_path: str, source_json: str) -> None:
-  """
-  THM profile scraper.\n
-  USERNAME = THM profile username. \n
-  usage: \n
-  python generate_thm_badge.py <username> --log_level <level>
-  """
+@click.option('--log_level', default='INFO',
+              help='Logging level: CRITICAL, ERROR, WARNING, INFO, DEBUG')
+@click.option('--image_dest_path', default='tryHackMe.png', help='Path to save the badge image')
+@click.option('--cookies_file', default=None, help='Path to cookies file (Netscape format)')
+@click.option('--json_source', default='json_source.json', help='Path to JSON fallback file')
+@click.argument('username', type=str)
+def command_line(log_level: str, username: str, image_dest_path: str,
+                 cookies_file: Optional[str], json_source: Optional[str]) -> None:
+  """Generate TryHackMe profile badge.
 
+  Example usage:
+      python generate_thm_badge.py Li77leSh4rk
+      python generate_thm_badge.py Li77leSh4rk --cookies_file cookies.txt
+  """
   print(f'=== Start {THMBadgeGenerator.__name__} ===')
-  runner = THMBadgeGenerator(log_level, image_dest_path, source_json, username)
+  runner = THMBadgeGenerator(log_level, username, image_dest_path, cookies_file, json_source)
   runner.run()
   print(f'=== End {THMBadgeGenerator.__name__} ===')
 

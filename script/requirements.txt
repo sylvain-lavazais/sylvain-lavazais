@@ -4,3 +4,4 @@ structlog
 Pillow
 svglib
 reportlab
+pycairo
